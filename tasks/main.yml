@@ -1,0 +1,76 @@
+# tasks/main.yml
+
+---
+- name: Ensure dependencies are installed
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+    update_cache: yes
+
+- name: Add NodeSource APT repository
+  ansible.builtin.apt_key:
+    url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+    state: present
+
+- name: Create NodeSource repository file
+  ansible.builtin.apt_repository:
+    repo: "deb https://deb.nodesource.com/node_{{ nodejs_version }} {{ ansible_facts['distribution_release'] }} main"
+    state: present
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: yes
+
+- name: Create homebridge user and group
+  ansible.builtin.user:
+    name: "{{ homebridge_user }}"
+    group: "{{ homebridge_group }}"
+    home: "{{ homebridge_config_dir }}"
+    createhome: yes
+    shell: /bin/bash
+
+- name: Create homebridge config directory
+  ansible.builtin.file:
+    path: "{{ homebridge_config_dir }}"
+    state: directory
+    owner: "{{ homebridge_user }}"
+    group: "{{ homebridge_group }}"
+    mode: '0755'
+
+- name: Install Homebridge
+  ansible.builtin.npm:
+    name: homebridge
+    version: "{{ homebridge_version }}"
+    global: yes
+    state: present
+
+- name: Create Homebridge config.json from template
+  ansible.builtin.template:
+    src: config.json.j2
+    dest: "{{ homebridge_config_dir }}/config.json"
+    owner: "{{ homebridge_user }}"
+    group: "{{ homebridge_group }}"
+    mode: '0644'
+  notify: Restart Homebridge
+
+- name: Create systemd service for Homebridge
+  ansible.builtin.template:
+    src: homebridge.service.j2
+    dest: /etc/systemd/system/homebridge.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Homebridge
+
+- name: Ensure Homebridge is enabled and started
+  ansible.builtin.systemd:
+    name: homebridge
+    enabled: yes
+    state: started

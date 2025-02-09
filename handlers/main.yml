@@ -1,0 +1,6 @@
+---
+
+- name: Restart Homebridge
+  ansible.builtin.systemd:
+    name: homebridge
+    state: restarted
